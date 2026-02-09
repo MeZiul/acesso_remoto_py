@@ -137,6 +137,7 @@
             <div id="share-message" class="success" style="display: none;">
                 Código copiado para a área de transferência!
             </div>
+            <div id="error-msg" class="error"></div>
         </div>
 
         <!-- Seção conectar (digitar código) -->
@@ -179,15 +180,37 @@
                     myCodeEl.textContent = data.code;
 
                     // Copiar automaticamente ao gerar
-                    navigator.clipboard.writeText(data.code).then(() => {
-                        shareMessage.style.display = 'block';
-                        setTimeout(() => shareMessage.style.display = 'none', 4000);
-                    });
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(data.code)
+                            .then(() => {
+                                shareMessage.style.display = 'block';
+                                setTimeout(() => shareMessage.style.display = 'none', 4000);
+                            })
+                            .catch(() => {
+                                // Se falhar, o usuário pode copiar manualmente
+                                console.warn('Clipboard bloqueado!')
+                                myCodeEl.addEventListener('click', () => {
+                                    const range = document.createRange();
+                                    range.selectNodeContents(myCodeEl);
+                                    window.getSelection().removeAllRanges();
+                                    window.getSelection().addRange(range);
+
+                                    try {
+                                        document.execCommand('copy');
+                                        shareMessage.style.display = 'block';
+                                        setTimeout(() => shareMessage.style.display = 'none', 4000);
+                                    } catch (err) {
+                                        alert('Erro ao copiar código. Tente copiar manualmente.');
+                                    }
+                                    window.getSelection().removeAllRanges();
+                                });
+                            });
+                        }
                 } else {
                     myCodeEl.textContent = 'Erro ao gerar';
-                    errorMsg.textContent = data.message || 'Falha na geração do código';
+                    alert(data.message || 'Falha na geração do código');
                 }
-            } catch (err) {
+            }catch (err) {
                 myCodeEl.textContent = 'Erro';
                 errorMsg.textContent = 'Não foi possível conectar ao servidor';
             }

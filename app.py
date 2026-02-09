@@ -25,9 +25,10 @@ streaming_thread = None
 last_activity = time.time()
 INACTIVITY_TIMEOUT = 300
 active_codes = {}
+active_streams = {}
 
 def generate_code(length=6):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 def authenticated_only(f):
     @wraps(f)
@@ -44,8 +45,12 @@ def home():
 
 @app.route('/generate_code', methods=['POST'])
 def generate_code_route():
-    if 'authenticated' in session:
-        return jsonify(success=False, message="sessão já ativa")
+    if session.get('authenticated'):
+        return jsonify(
+            success=False,
+            error="Sessão já autenticada",
+            code=None
+        ), 400
     
     code = generate_code()
     active_codes[code] = {
@@ -84,6 +89,14 @@ def remote():
 
 @socketio.on('connect')
 def handle_connect():
+    if not session.get("authenticated"):
+        emit("error", {"message": "Sessão não autenticada"})
+        return
+    join_room(request.sid)
+    emit('screen_size', {
+        'width': pyautogui.size().width,
+        'height': pyautogui.size().height
+    })
     print("Cliente conectado:", request.sid)
     if not session.get("authenticated"):
         emit("error", {"message": "Sessão não autenticada"})
@@ -101,11 +114,16 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    active_streams.pop(request.sid, None)
     print("Cliente desconectado:", request.sid)
 
 @socketio.on('command')
 @authenticated_only
 def handle_command(data):
+    if not session.get("authenticated"):
+        emit("error", {"message": "Sessão não autenticada"})
+        return
+    
     global last_activity
     last_activity = time.time()
     try:
@@ -150,37 +168,29 @@ def handle_command(data):
 
 
 def send_screen():
-    global streaming_active
-    while streaming_active:
+    while active_streams.get(request.sid):
         try:
             img = pyautogui.screenshot()
-            frame = np.array(img)
+            frame =np.array(img)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             
-            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 45]
-            _, buffer = cv2.imencode('.jpg', frame, encode_param)
-
+            _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 45])
             jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-            socketio.emit('screen', jpg_as_text)
-            
-            socketio.sleep(0.08)  # ~12-13 fps
+
+            socketio.emit('screen', jpg_as_text, room=sid)
+            socketio.sleep(0.08)
         except Exception as e:
             print("Erro no streaming:", e)
-            socketio.sleep(1)
+            break
 
 
 @socketio.on('start_stream')
-@authenticated_only
 def start_stream():
-    global streaming_active, streaming_thread
-    
-    if not streaming_active:
-        print("Iniciando streaming...")
-        streaming_active = True
-        streaming_thread = threading.Thread(target=send_screen, daemon=True)
-        streaming_thread.start()
-    else:
-        print("Streaming já está ativo")
+    if not session.get("authenticated"):
+        emit("error", {"message": "Sessão não autenticada"})
+        return
+    active_streams[request.sid] = True
+    socketio.start_background_task(send_screen, request.sid)
 
 def monitor_inactivity():
     global streaming_active, last_activity
@@ -197,7 +207,18 @@ def stop_stream():
     print("Parando streaming...")
     streaming_active = False
 
+def cleanup_codes():
+    while True:
+        time.sleep(60)
+        now = time.time()
+        expired = [
+            code for code, info in active_codes.items()
+            if now - info["created_at"] > 1800
+        ]
+        for code in expired:
+            active_codes.pop(code, None)
 
 if __name__ == "__main__":
     threading.Thread(target=monitor_inactivity, daemon=True).start()
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
+    threading.Thread(target=cleanup_codes, daemon=True).start()
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
