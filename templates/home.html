@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso Remoto</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .container {
+            background: #161b22;
+            padding: 40px;
+            border-radius: 12px;
+            width: 420px;
+            max-width: 92%;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        h1 {
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #8b949e;
+            margin-bottom: 32px;
+            font-size: 15px;
+        }
+
+        .mode-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .btn {
+            padding: 16px;
+            font-size: 17px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-weight: 500;
+        }
+
+        .btn-connect {
+            background: #238636;
+            color: white;
+        }
+
+        .btn-connect:hover {
+            background: #2ea043;
+        }
+
+        .btn-share {
+            background: #444c56;
+            color: #c9d1d9;
+        }
+
+        .btn-share:hover {
+            background: #586069;
+        }
+
+        .code-display {
+            background: #0d1117;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 24px;
+            letter-spacing: 4px;
+            margin: 20px 0;
+            word-break: break-all;
+            font-family: monospace;
+            user-select: all;
+        }
+
+        .input-code {
+            width: 100%;
+            padding: 14px;
+            font-size: 18px;
+            text-align: center;
+            letter-spacing: 2px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            margin-bottom: 16px;
+        }
+
+        .error,
+        .success {
+            min-height: 20px;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+
+        .error {
+            color: #f85149;
+        }
+
+        .success {
+            color: #56d364;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Acesso Remoto</h1>
+        <p class="subtitle">Compartilhe ou conecte-se a outra máquina</p>
+
+        <div class="mode-buttons" id="mode-buttons">
+            <button class="btn btn-share" id="btn-share">Quero compartilhar minha tela</button>
+            <button class="btn btn-connect" id="btn-connect">Quero acessar outra máquina</button>
+        </div>
+
+        <!-- Seção compartilhar (gerar código) -->
+        <div id="share-section" style="display: none;">
+            <p style="margin-bottom: 12px;">Seu código de acesso temporário:</p>
+            <div class="code-display" id="my-code">------</div>
+            <p style="font-size: 14px; color: #8b949e; line-height: 1.5;">
+                Compartilhe este código com quem vai acessar sua máquina.<br>
+                O código é válido apenas enquanto esta página estiver aberta.
+            </p>
+            <div id="share-message" class="success" style="display: none;">
+                Código copiado para a área de transferência!
+            </div>
+        </div>
+
+        <!-- Seção conectar (digitar código) -->
+        <div id="connect-section" style="display: none;">
+            <input type="text" class="input-code" id="input-code" placeholder="Digite o código" maxlength="10"
+                autocomplete="off">
+            <button class="btn btn-connect" id="btn-connect-now">Conectar agora</button>
+            <div id="error-msg" class="error"></div>
+        </div>
+    </div>
+
+    <script>
+        const modeButtons = document.getElementById('mode-buttons');
+        const shareBtn = document.getElementById('btn-share');
+        const connectBtn = document.getElementById('btn-connect');
+        const shareSection = document.getElementById('share-section');
+        const connectSection = document.getElementById('connect-section');
+        const myCodeEl = document.getElementById('my-code');
+        const inputCode = document.getElementById('input-code');
+        const errorMsg = document.getElementById('error-msg');
+        const connectNowBtn = document.getElementById('btn-connect-now');
+        const shareMessage = document.getElementById('share-message');
+
+        // Mostrar seção compartilhar
+        shareBtn.addEventListener('click', async () => {
+            modeButtons.style.display = 'none';
+            shareSection.style.display = 'block';
+            connectSection.style.display = 'none';
+
+            myCodeEl.textContent = 'Gerando código...';
+
+            try {
+                const res = await fetch('/generate_code', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await res.json();
+
+                if (data.success && data.code) {
+                    myCodeEl.textContent = data.code;
+
+                    // Copiar automaticamente ao gerar
+                    navigator.clipboard.writeText(data.code).then(() => {
+                        shareMessage.style.display = 'block';
+                        setTimeout(() => shareMessage.style.display = 'none', 4000);
+                    });
+                } else {
+                    myCodeEl.textContent = 'Erro ao gerar';
+                    errorMsg.textContent = data.message || 'Falha na geração do código';
+                }
+            } catch (err) {
+                myCodeEl.textContent = 'Erro';
+                errorMsg.textContent = 'Não foi possível conectar ao servidor';
+            }
+        });
+
+        // Mostrar seção conectar
+        connectBtn.addEventListener('click', () => {
+            modeButtons.style.display = 'none';
+            connectSection.style.display = 'block';
+            shareSection.style.display = 'none';
+            inputCode.focus();
+        });
+
+        // Tentar conectar
+        connectNowBtn.addEventListener('click', async () => {
+            const code = inputCode.value.trim();
+            errorMsg.textContent = '';
+
+            if (!code) {
+                errorMsg.textContent = 'Digite o código';
+                return;
+            }
+
+            connectNowBtn.disabled = true;
+            connectNowBtn.textContent = 'Conectando...';
+
+            try {
+                const res = await fetch('/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code }),
+                    credentials: 'include'
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    errorMsg.className = 'success';
+                    errorMsg.textContent = 'Conectado! Redirecionando...';
+                    setTimeout(() => {
+                        window.location.href = '/remote';
+                    }, 1000);
+                } else {
+                    errorMsg.textContent = data.message || 'Código inválido';
+                    connectNowBtn.disabled = false;
+                    connectNowBtn.textContent = 'Conectar agora';
+                }
+            } catch (err) {
+                errorMsg.textContent = 'Erro ao conectar ao servidor';
+                connectNowBtn.disabled = false;
+                connectNowBtn.textContent = 'Conectar agora';
+            }
+        });
+
+        // Permitir Enter para conectar
+        inputCode.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                connectNowBtn.click();
+            }
+        });
+    </script>
+</body>
+
+</html>

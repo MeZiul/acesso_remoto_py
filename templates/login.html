@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso Remoto - Login</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0d1117;
+            color: #c9d1d9;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            background: #161b22;
+            padding: 40px 30px;
+            border-radius: 12px;
+            width: 380px;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        h1 {
+            margin-bottom: 24px;
+            font-size: 24px;
+        }
+        input {
+            width: 100%;
+            padding: 14px;
+            font-size: 18px;
+            margin-bottom: 20px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #0d1117;
+            color: #c9d1d9;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #2ea043;
+        }
+        .error {
+            color: #f85149;
+            margin-top: 12px;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Acesso Remoto</h1>
+    <p>Digite o código da máquina remota</p>
+    
+    <form id="loginForm">
+        <input type="text" id="code" placeholder="Código (ex: 123456)" maxlength="8" autocomplete="off">
+        <button type="submit">Conectar</button>
+        <div class="error" id="errorMsg"></div>
+    </form>
+</div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const code = document.getElementById('code').value.trim();
+    const errorEl = document.getElementById('errorMsg');
+    
+    if (!code) {
+        errorEl.textContent = "Digite o código";
+        return;
+    }
+    
+    try {
+        const response = await fetch('/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            window.location.href = '/remote';
+        } else {
+            errorEl.textContent = data.message || "Código inválido";
+        }
+    } catch (err) {
+        errorEl.textContent = "Erro ao conectar";
+    }
+});
+</script>
+</body>
+</html>
