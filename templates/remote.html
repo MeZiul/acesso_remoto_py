@@ -28,7 +28,6 @@
             height: 100%;
             object-fit: contain;
             image-rendering: pixelated;
-            cursor: none;
         }
 
         #status {
@@ -73,8 +72,7 @@
     color: white;
     border: none;
     border-radius: 4px;
-    cursor: pointer;
-">Parar Streaming</button>
+    cursor: pointer;">Parar Streaming</button>
 
     <script>
         const socket = io();
@@ -170,9 +168,41 @@
         });
 
         // Teclado
-        window.addEventListener("keydown", (e) => {
+        document.addEventListener("keydown", (e) => {
             if (e.repeat) return;
-            send({ type: "key", key: e.key });
+
+            const keyMap = {
+                ArrowUp: "up",
+                ArrowDown: "down",
+                ArrowLeft: "left",
+                ArrowRight: "right",
+                " ": "space",
+                Enter: "enter",
+                Escape: "esc",
+                Backspace: "backspace",
+                Delete: "delete",
+                Tab: "tab"
+            };
+            const mappedKeys = keyMap[e.key] || e.key.toLocaleLowerCase();
+            const modificadores = e.ctrlKey || e.altKey || e.shiftKey || e.metaKey;
+
+            if (modificadores) {
+                let combo = [];
+
+                if (e.ctrlKey) combo.push("ctrl");
+                if (e.altKey) combo.push("alt");
+                if (e.shiftKey) combo.push("shift");
+                if (e.metaKey) combo.push("meta");
+
+                combo.push(mappedKeys);
+
+                socket.emit("command", { type: "hotkey", keys: combo });
+
+                e.preventDefault();
+                return;
+            }
+
+            socket.emit("command", { type: "key", key: mappedKeys });
         });
 
         let lastClick = 0;

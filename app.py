@@ -114,8 +114,9 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    active_streams.pop(request.sid, None)
-    print("Cliente desconectado:", request.sid)
+    sid = request.sid
+    active_streams.pop(sid, None)
+    print("Cliente desconectado:", sid)
 
 @socketio.on('command')
 @authenticated_only
@@ -161,14 +162,26 @@ def handle_command(data):
         elif cmd_type == "key":
             key = data.get("key")
             if key and isinstance(key, str):
-                pyautogui.press(key)
+                try:
+                    pyautogui.press(key.lower())
+                except Exception as e:
+                    print("Erro ao pressionar tecla:", key, e)
+        
+        elif cmd_type == "hotkey":
+            keys = data.get("keys")
+            if isinstance(keys, list) and all(isinstance(k, str) for k in keys):
+                try:
+                    keys = [k.lower() for k in keys]
+                    pyautogui.hotkey(*keys)
+                except Exception as e:
+                    print("Erro ao pressionar hotkey:", keys, e)
 
     except Exception as e:
         print("Erro ao executar comando:", e)
 
 
-def send_screen():
-    while active_streams.get(request.sid):
+def send_screen(sid):
+    while active_streams.get(sid):
         try:
             img = pyautogui.screenshot()
             frame =np.array(img)
@@ -203,9 +216,9 @@ def monitor_inactivity():
 @socketio.on('stop_stream')
 @authenticated_only
 def stop_stream():
-    global streaming_active
+    sid = request.sid
     print("Parando streaming...")
-    streaming_active = False
+    active_streams[sid] = False
 
 def cleanup_codes():
     while True:
